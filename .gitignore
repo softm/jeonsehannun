@@ -1,34 +1,25 @@
-# Dependencies and generated output
 node_modules/
 dist/
 build/
 coverage/
-.vite/
-.next/
-
-# Local environment and credentials
+_site/
+playwright-report/
+test-results/
 .env
 .env.*
 !.env.example
-!.env.*.example
 *.pem
 *.key
 *service-account*.json
 *serviceAccount*.json
 firebase-adminsdk*.json
-
-# Runtime logs and temporary files
 *.log
 tmp/
 temp/
-
-# Private user documents and local analysis
 uploads/
 private-documents/
 user-data/
 local-analysis/
-
-# Local OS/editor files
 .DS_Store
 Thumbs.db
 .idea/

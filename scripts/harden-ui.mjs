@@ -1,0 +1,3 @@
+// Run once before publication: replace decorative inline styles so CSP stays strict.
+import {readFileSync,writeFileSync} from 'node:fs';
+const file='app.js';let text=readFileSync(file,'utf8');text=text.replaceAll('class="inline" style="justify-content:center"','class="inline centered"').replaceAll('class="card" style="margin-top:20px"','class="card mt20"').replaceAll('<h3 style="margin-top:28px">','<h3 class="mt28">');writeFileSync(file,text);let css=readFileSync('styles.css','utf8');if(!css.includes('.centered{'))writeFileSync('styles.css',css+'\n.centered{justify-content:center}.mt20{margin-top:20px}.mt28{margin-top:28px}\n');
