@@ -1,0 +1,59 @@
+name: Prepare house-first UX
+on:
+  push:
+    branches: [feat/house-first-ux]
+    paths:
+      - scripts/apply-house-first-ux.py
+      - .github/workflows/prepare-house-first.yml
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: house-first-ux-verification
+  cancel-in-progress: false
+jobs:
+  prepare:
+    if: github.ref == 'refs/heads/feat/house-first-ux'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Apply guarded house-first UX changes
+        run: |
+          python3 scripts/apply-house-first-ux.py
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('app.js'); s=p.read_text()
+          s=s.replace('개 집 기록를 새 집 기록으로 가져오기합니다.','개 집 기록을 별도 기록으로 가져옵니다.')
+          s=s.replace('백업을 새 집 기록으로 가져오기했습니다.','백업한 집 기록을 가져왔어요.')
+          p.write_text(s)
+          PY
+      - name: Check syntax and data handling
+        run: npm ci --ignore-scripts --no-audit --no-fund && npm run check && npm test
+      - name: Install test browser
+        run: npx playwright install --with-deps chromium
+      - name: Run existing and new browser journeys
+        run: npm run e2e
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: house-first-ux-browser-results
+          path: |
+            test-results/
+            playwright-report/
+          retention-days: 14
+      - name: Commit only verified UI sources
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- index.html app.js model.js styles.css privacy.html data-status.html e2e/app.spec.js docs/HOUSE-FIRST-UX.md
+          if ! git diff --cached --quiet; then
+            git commit -m 'feat: replace project setup with house notes and guided checking'
+            git push origin HEAD:feat/house-first-ux
+          fi
+          echo "VERIFIED_SOURCE_COMMIT=$(git rev-parse HEAD)" >> "$GITHUB_STEP_SUMMARY"
