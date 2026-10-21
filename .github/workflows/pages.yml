@@ -1,0 +1,56 @@
+name: Test and deploy Jeonse Hannun
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: jeonsehannun-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm run check && npm test
+      - name: Build publish-only directory
+        run: |
+          mkdir -p _site
+          cp index.html styles.css app.js model.js store.js data.js data-status.html privacy.html _site/
+          touch _site/.nojekyll
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: _site
+  deploy:
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: https://softm.github.io/jeonsehannun/
+    steps:
+      - name: Check independent Pages setup
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          if gh api "repos/${{ github.repository }}/pages" > "$RUNNER_TEMP/pages.json"; then
+            echo 'enabled=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'enabled=false' >> "$GITHUB_OUTPUT"
+            echo '::warning::Independent repository Pages is not enabled. Build artifact is ready; see docs/DEPLOYMENT.md for the current publication path.'
+          fi
+      - uses: actions/configure-pages@v5
+        if: steps.check.outputs.enabled == 'true'
+      - uses: actions/deploy-pages@v4
+        if: steps.check.outputs.enabled == 'true'
+        id: deployment

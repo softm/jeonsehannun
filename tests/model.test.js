@@ -1,0 +1,18 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {CHECKS} from '../data.js';import {parseMoney,newProject,summary,effective,validateCheck,normalizeImported,snapshot,diffSnapshot,activeChecks,today} from '../model.js';
+const base=()=>newProject({name:'테스트 집',address:'테스트 주소',housing:'아파트',deposit:'200000000',phase:0});
+test('빈 보증금은 0원이 아닌 null',()=>assert.equal(parseMoney(''),null));
+test('금액은 쉼표를 처리',()=>assert.equal(parseMoney('200,000,000'),200000000));
+test('음수·소수·잘못된 금액 차단',()=>{for(const n of ['-1','1.2','NaN','Infinity','1000000000001'])assert.throws(()=>parseMoney(n));});
+test('신규 프로젝트는 모든 점검 미확인',()=>{const p=base(),s=summary(p);assert.equal(s.unknown,s.total);assert.equal(s.done,0);});
+test('프로젝트 ID는 독립',()=>assert.notEqual(base().id,base().id));
+test('다가구 선순위 항목이 동적으로 추가',()=>{const p=base();assert.equal(activeChecks(p).some(x=>x.id==='senior'),false);p.housing='다가구·단독';assert.equal(activeChecks(p).some(x=>x.id==='senior'),true);});
+test('잔금 등기는 확인일이 다르면 재확인',()=>{const c=CHECKS.find(x=>x.id==='registry-final');assert.equal(effective(c,{status:'done',date:'2026-01-01'},'2026-10-22'),'stale');assert.equal(effective(c,{status:'done',date:'2026-10-22'},'2026-10-22'),'done');});
+test('근거 없는 완료·해당없음 저장 차단',()=>{for(const status of ['done','na'])assert.throws(()=>validateCheck({status,note:'',documentId:'',date:today()}));});
+test('완료 근거 메모 인정',()=>assert.equal(validateCheck({status:'done',note:'등기와 대조',documentId:'',date:today()}).status,'done'));
+test('미래 확인일 차단',()=>assert.throws(()=>validateCheck({status:'done',note:'확인',documentId:'',date:'2099-01-01'})));
+test('백업 ID를 신뢰하지 않고 신규 생성',()=>{const p=base(),b=normalizeImported(p);assert.notEqual(p.id,b.id);assert.equal(b.name,'테스트 집 (복원)');});
+test('유효하지 않은 백업 상태는 미확인',()=>{const p=base();p.checks.address={status:'safe',note:'',date:''};const b=normalizeImported(p);assert.equal(b.checks.address.status,'unknown');});
+test('복원 시 근거 없는 완료는 미확인',()=>{const p=base();p.checks.address={status:'done',note:'',documentId:'old-id',date:today()};assert.equal(normalizeImported(p).checks.address.status,'unknown');});
+test('상태기록은 현재 객체와 독립',()=>{const p=base(),s=snapshot(p);p.checks.address={status:'flagged',note:'불일치',date:today()};assert.equal(Object.keys(s.checks).length,0);assert.equal(diffSnapshot(p,s).length,1);});
+test('주소·보증금 변화가 비교에 포함',()=>{const p=base(),s=snapshot(p);p.address='변경';p.deposit=null;assert.equal(diffSnapshot(p,s).length,2);});
+test('스크립트 문자열은 데이터로 보존, HTML 출력은 UI escaping',()=>{const p=base();p.name='<img src=x onerror=alert(1)>';assert.equal(normalizeImported(p).name.includes('<img'),true);});
