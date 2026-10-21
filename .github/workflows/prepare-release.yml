@@ -1,0 +1,56 @@
+name: Prepare checked release
+on:
+  push:
+    branches: [feat/pages-mvp]
+    paths: [.github/workflows/prepare-release.yml]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  prepare:
+    if: github.ref == 'refs/heads/feat/pages-mvp'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/pages-mvp
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Fix visibility handler closure once
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('app.js')
+          s=p.read_text()
+          old="document.addEventListener('visibilitychange',async()=>{if(document.visibilityState==='visible'&&!busy&&!modal.open){try{all=await db.projects();if(!p())current=all[0]?.id||null;render();}catch(e){toast(errorText(e));}});"
+          new=old[:-3]+'}});'
+          if old in s:
+              s=s.replace(old,new)
+              p.write_text(s)
+          elif new not in s:
+              raise SystemExit('Source changed; inspect before applying repair')
+          PY
+      - run: npm install --ignore-scripts --no-audit --no-fund
+      - run: npm run check && npm test
+      - run: npx playwright install --with-deps chromium
+      - run: npm run e2e
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: prepared-release-browser-tests
+          path: |
+            test-results/
+            playwright-report/
+          retention-days: 14
+      - name: Save verified source and dependency lock
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- app.js styles.css package-lock.json
+          if ! git diff --cached --quiet; then
+            git commit -m 'fix: persist verified source, CSP-safe styles and dependency lock'
+            git push origin HEAD:feat/pages-mvp
+          fi
+          echo "VERIFIED_SOURCE_COMMIT=$(git rev-parse HEAD)" | tee -a "$GITHUB_STEP_SUMMARY"
