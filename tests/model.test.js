@@ -1,4 +1,4 @@
-import test from 'node:test';import assert from 'node:assert/strict';import {CHECKS} from '../data.js';import {parseMoney,newProject,summary,effective,validateCheck,normalizeImported,snapshot,diffSnapshot,activeChecks,today} from '../model.js';
+import test from 'node:test';import assert from 'node:assert/strict';import {CHECKS,SOURCES} from '../data.js';import {parseMoney,newProject,summary,effective,validateCheck,normalizeImported,snapshot,diffSnapshot,activeChecks,today} from '../model.js';
 const base=()=>newProject({name:'테스트 집',address:'테스트 주소',housing:'아파트',deposit:'200000000',phase:0});
 test('빈 보증금은 0원이 아닌 null',()=>assert.equal(parseMoney(''),null));
 test('금액은 쉼표를 처리',()=>assert.equal(parseMoney('200,000,000'),200000000));
@@ -16,3 +16,6 @@ test('복원 시 근거 없는 완료는 미확인',()=>{const p=base();p.checks
 test('상태기록은 현재 객체와 독립',()=>{const p=base(),s=snapshot(p);p.checks.address={status:'flagged',note:'불일치',date:today()};assert.equal(Object.keys(s.checks).length,0);assert.equal(diffSnapshot(p,s).length,1);});
 test('주소·보증금 변화가 비교에 포함',()=>{const p=base(),s=snapshot(p);p.address='변경';p.deposit=null;assert.equal(diffSnapshot(p,s).length,2);});
 test('스크립트 문자열은 데이터로 보존, HTML 출력은 UI escaping',()=>{const p=base();p.name='<img src=x onerror=alert(1)>';assert.equal(normalizeImported(p).name.includes('<img'),true);});
+
+test('공식 예방 조회 핵심 항목이 체크리스트에 포함',()=>{for(const id of ['safe-diagnosis','landlord-risk'])assert.equal(CHECKS.some(c=>c.id===id),true);});
+test('공식 예방 조회 링크는 HTTPS 경로',()=>{for(const key of ['hugApp','landlord','defaulter','registry'])assert.match(SOURCES[key].url,/^https:\/\//);});
